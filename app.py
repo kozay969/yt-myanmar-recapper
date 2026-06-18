@@ -1,5 +1,5 @@
 import streamlit as st
-import youtube_transcript_api
+import yt_dlp
 import google.generativeai as genai
 import os, re
 
@@ -15,45 +15,54 @@ def get_video_id(url):
     match = re.search(pattern, url)
     return match.group(1) if match else None
 
-def get_youtube_transcript(video_id):
+# YouTube ကနေ အသံဖိုင် သီးသန့်ဒေါင်းမည့် function
+def download_youtube_audio(url):
+    ydl_opts = {
+        'format': 'm4a/bestaudio/best',
+        'outtmpl': 'downloads/%(id)s.%(ext)s',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'm4a',
+        }],
+        'quiet': True,
+    }
     try:
-        # Transcript list ကို အရင်ဆွဲထုတ်မယ်
-        transcript_list = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id)
-        
-        # ၁။ လူကိုယ်တိုင် ထည့်ထားတဲ့ (Official) အင်္ဂလိပ် သို့ မြန်မာ စာတန်းထိုးကို အရင်ရှာမယ်
-        try:
-            t_data = transcript_list.find_transcript(['en', 'my']).fetch()
-        except:
-            # ၂။ မရှိရင် အလိုအလျောက် ဖန်တီးထားတဲ့ (Auto-generated) အင်္ဂလိပ် စာတန်းထိုးကို ရှာမယ်
-            try:
-                t_data = transcript_list.find_generated_transcript(['en']).fetch()
-            except:
-                # ၃။ လုံးဝမရရင် ရှိတဲ့ ပထမဆုံး စာတန်းထိုးကို ယူမယ်
-                t_data = transcript_list.find_transcript([]).fetch()
-                
-        return " ".join([item['text'] for item in t_data])
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            video_id = info['id']
+            audio_path = f"downloads/{video_id}.m4a"
+            return audio_path
     except Exception as e:
-        return f"Error: Transcript ဆွဲထုတ်လို့မရပါ - {str(e)}"
+        return f"Error: {str(e)}"
 
-def generate_myanmar_recap(transcript_text):
+# အသံဖိုင်ကို Gemini ထံပို့ပြီး မြန်မာလို အနှစ်ချုပ်ခိုင်းမည့် function
+def generate_recap_from_audio(audio_path):
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        # Prompt ကို ပိုပြီး ရှင်းရှင်းလင်းလင်း ပြင်ထားပါတယ်
-        prompt = f"""
-        You are an expert storyteller. Please breakdown, summarize and recap the following video transcript into very natural, flowing, and engaging Myanmar (Burmese) language.
-        Format it with a main summary and key highlights in bullet points.
+        st.write("အသံဖိုင်ကို AI ထံသို့ ပေးပို့နေသည်...🤖")
+        # အသံဖိုင်ကို Gemini cloud ပေါ် တင်ခြင်း
+        audio_file = genai.upload_file(path=audio_path)
         
-        Transcript:
-        {transcript_text}
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        prompt = """
+        Listen to this audio carefully. Translate, breakdown and recap the entire content into natural, engaging, flowing, and professional Myanmar (Burmese) language.
+        Format it beautifully with an 'အကျဉ်းချုပ် (Summary)' section and key insights in bullet points.
         """
-        response = model.generate_content(prompt)
+        
+        response = model.generate_content([audio_file, prompt])
+        
+        # ပြီးရင် ဖုန်း/Server ထဲက အသံဖိုင်ကို ပြန်ဖျက်ပစ်မယ်
+        genai.delete_file(audio_file.name)
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+            
         return response.text
     except Exception as e:
         return f"AI Error: {str(e)}"
 
 # UI App
-st.title("🎥 YT Myanmar Recapper")
-st.write("YouTube Video အနှစ်ချုပ် စကရစ်ဖ် ထုတ်ပေးမည့် App")
+st.title("🎥 YT Myanmar Voice Recapper")
+st.write("စာတန်းထိုး မလိုတော့ပါ။ ဗီဒီယိုထဲက အသံကို နားထောင်ပြီး မြန်မာလို အနှစ်ချုပ်ပေးမည့်စနစ်")
 
 video_url = st.text_input("YouTube URL ကို ထည့်ပါ:")
 
@@ -63,16 +72,22 @@ if st.button("Recap လုပ်မယ် ✨"):
         if video_id:
             st.image(f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", width=300)
             
-            with st.spinner("စာသားများ ဆွဲထုတ်နေသည်...⏳"):
-                transcript = get_youtube_transcript(video_id)
+            # ဒေါင်းလုဒ်ဆွဲမယ့် Folder ဆောက်ခြင်း
+            if not os.path.exists('downloads'):
+                os.makedirs('downloads')
+                
+            with st.spinner("ဗီဒီယိုထဲမှ အသံကို သီးသန့် ခွဲထုတ်နေသည်...⏳ (ဗီဒီယိုအရှည်ပေါ်မူတည်ပြီး အချိန်အနည်းငယ်ကြာနိုင်ပါသည်)"):
+                audio_result = download_youtube_audio(video_url)
             
-            if "Error" in transcript:
-                st.error(transcript)
+            if "Error" in audio_result:
+                st.error(audio_result)
             else:
-                with st.spinner("မြန်မာလို အနှစ်ချုပ်နေသည်...🤖✍️"):
-                    recap_result = generate_myanmar_recap(transcript)
+                with st.spinner("Gemini AI က အသံကို နားထောင်ပြီး မြန်မာလို အနှစ်ချုပ်နေသည်...🎧✍️"):
+                    recap_result = generate_recap_from_audio(audio_result)
+                
                 st.success("ပြီးပါပြီ။ ✨")
-                st.subheader("📝 မြန်မာလို အနှစ်ချုပ်")
+                st.subheader("📝 မြန်မာလို အနှစ်ချုပ် စကရစ်ဖ်")
                 st.markdown(recap_result)
         else:
             st.error("မှန်ကန်သော YouTube Link ဖြစ်ပါစေ။")
+            
