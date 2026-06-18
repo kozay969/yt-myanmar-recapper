@@ -3,99 +3,199 @@ import google.generativeai as genai
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
 
-# Gemini API Key
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-model = genai.GenerativeModel("gemini-2.5-flash")
+# -----------------------
+# Streamlit Config
+# -----------------------
 
 st.set_page_config(
     page_title="YouTube Myanmar Recap",
-    page_icon="🎬"
+    page_icon="🎬",
+    layout="wide"
 )
 
 st.title("🎬 YouTube Myanmar Recap")
 
-url = st.text_input("YouTube URL")
+# -----------------------
+# Gemini API
+# -----------------------
 
-# Extract Video ID
+genai.configure(
+    api_key=st.secrets["GEMINI_API_KEY"]
+)
+
+model = genai.GenerativeModel(
+    "gemini-2.5-flash"
+)
+
+# -----------------------
+# URL Parser
+# -----------------------
+
 def get_video_id(url):
     parsed = urlparse(url)
 
     if "youtu.be" in parsed.netloc:
-        return parsed.path[1:]
+        return parsed.path.lstrip("/")
 
-    return parse_qs(parsed.query).get("v", [""])[0]
+    return parse_qs(
+        parsed.query
+    ).get(
+        "v",
+        [""]
+    )[0]
 
+# -----------------------
+# Transcript Fetch
+# -----------------------
 
-# Transcript
 def get_transcript(video_id):
 
-    transcript = YouTubeTranscriptApi.get_transcript(
-        video_id
-    )
+    api = YouTubeTranscriptApi()
+
+    transcript = api.fetch(video_id)
 
     text = " ".join(
-        [x["text"] for x in transcript]
+        item.text
+        for item in transcript
     )
 
     return text
 
+# -----------------------
+# Chunking
+# -----------------------
 
-# Long Video Support
-def chunk_text(text, size=10000):
-
+def chunk_text(
+    text,
+    chunk_size=15000
+):
     chunks = []
 
-    for i in range(0, len(text), size):
-        chunks.append(text[i:i+size])
+    for i in range(
+        0,
+        len(text),
+        chunk_size
+    ):
+        chunks.append(
+            text[i:i + chunk_size]
+        )
 
     return chunks
 
-
+# -----------------------
 # Summary
-def summarize(text):
+# -----------------------
+
+def summarize_chunk(
+    text,
+    length,
+    style
+):
 
     prompt = f"""
-You are an expert Burmese content creator.
+You are a professional Burmese YouTube creator.
 
-Convert the transcript into a natural Burmese recap script.
+Create:
 
-Requirements:
+1. Viral Title
+2. Thumbnail Text
+3. Burmese Recap Script
+4. Description
+5. Hashtags
 
-- Natural Burmese
-- Easy to understand
-- Storytelling style
-- Keep important points
+Style:
+{style}
+
+Length:
+{length}
+
+Rules:
+
+- Natural Burmese language
+- Storytelling tone
+- Easy to narrate
 - No direct translation
-- Suitable for YouTube narration
+- Keep important facts
+- Strong opening hook
 
 Transcript:
 
 {text}
+
+Return exactly in this format:
+
+TITLE:
+...
+
+THUMBNAIL:
+...
+
+SCRIPT:
+...
+
+DESCRIPTION:
+...
+
+HASHTAGS:
+...
 """
 
-    response = model.generate_content(prompt)
+    response = model.generate_content(
+        prompt
+    )
 
     return response.text
 
+# -----------------------
+# Final Recap
+# -----------------------
 
-def create_recap(transcript):
+def create_recap(
+    transcript,
+    length,
+    style
+):
 
-    chunks = chunk_text(transcript)
+    chunks = chunk_text(
+        transcript
+    )
 
     partials = []
 
     for chunk in chunks:
         partials.append(
-            summarize(chunk)
+            summarize_chunk(
+                chunk,
+                length,
+                style
+            )
         )
 
-    merged = "\n".join(partials)
+    merged = "\n\n".join(
+        partials
+    )
 
     final_prompt = f"""
-Combine all summaries below into one complete Burmese recap script.
+Combine everything below into ONE final result.
 
 {merged}
+
+Return:
+
+TITLE:
+...
+
+THUMBNAIL:
+...
+
+SCRIPT:
+...
+
+DESCRIPTION:
+...
+
+HASHTAGS:
+...
 """
 
     final = model.generate_content(
@@ -104,37 +204,89 @@ Combine all summaries below into one complete Burmese recap script.
 
     return final.text
 
+# -----------------------
+# UI
+# -----------------------
 
-if st.button("Generate Recap"):
+url = st.text_input(
+    "YouTube URL"
+)
 
-    if url:
+length = st.selectbox(
+    "Script Length",
+    [
+        "Short",
+        "Medium",
+        "Long"
+    ]
+)
 
-        with st.spinner("Processing..."):
+style = st.selectbox(
+    "Style",
+    [
+        "Recap",
+        "Storytelling",
+        "Documentary",
+        "News"
+    ]
+)
 
-            try:
+# -----------------------
+# Generate
+# -----------------------
 
-                video_id = get_video_id(url)
+if st.button(
+    "Generate Recap"
+):
 
-                transcript = get_transcript(video_id)
+    if not url:
+        st.warning(
+            "Please enter a YouTube URL."
+        )
+        st.stop()
 
-                recap = create_recap(
-                    transcript
-                )
+    try:
 
-                st.success("Done")
+        with st.spinner(
+            "Getting transcript..."
+        ):
 
-                st.text_area(
-                    "Myanmar Recap Script",
-                    recap,
-                    height=500
-                )
+            video_id = get_video_id(
+                url
+            )
 
-                st.download_button(
-                    "Download Script",
-                    recap,
-                    file_name="recap.txt"
-                )
+            transcript = get_transcript(
+                video_id
+            )
 
-            except Exception as e:
+        with st.spinner(
+            "Generating recap..."
+        ):
 
-                st.error(str(e))
+            result = create_recap(
+                transcript,
+                length,
+                style
+            )
+
+        st.success(
+            "Done!"
+        )
+
+        st.text_area(
+            "Result",
+            result,
+            height=700
+        )
+
+        st.download_button(
+            "Download",
+            result,
+            file_name="recap.txt"
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Error: {str(e)}"
+        )
