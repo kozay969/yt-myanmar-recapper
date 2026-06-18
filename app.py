@@ -17,14 +17,20 @@ def get_video_id(url):
 
 def get_youtube_transcript(video_id):
     try:
-        # Error မတက်အောင် ပုံစံအသစ်နဲ့ Transcript ဆွဲထုတ်နည်း
-        srt = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id)
-        # အင်္ဂလိပ်စာသားကို အရင်ရှာမယ်၊ မရှိရင် Auto-generated ကို ယူမယ်
+        # Transcript list ကို အရင်ဆွဲထုတ်မယ်
+        transcript_list = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id)
+        
+        # ၁။ လူကိုယ်တိုင် ထည့်ထားတဲ့ (Official) အင်္ဂလိပ် သို့ မြန်မာ စာတန်းထိုးကို အရင်ရှာမယ်
         try:
-            t_data = srt.find_transcript(['en', 'my']).fetch()
+            t_data = transcript_list.find_transcript(['en', 'my']).fetch()
         except:
-            t_data = srt.find_generated_transcript(['en', 'my']).fetch()
-            
+            # ၂။ မရှိရင် အလိုအလျောက် ဖန်တီးထားတဲ့ (Auto-generated) အင်္ဂလိပ် စာတန်းထိုးကို ရှာမယ်
+            try:
+                t_data = transcript_list.find_generated_transcript(['en']).fetch()
+            except:
+                # ၃။ လုံးဝမရရင် ရှိတဲ့ ပထမဆုံး စာတန်းထိုးကို ယူမယ်
+                t_data = transcript_list.find_transcript([]).fetch()
+                
         return " ".join([item['text'] for item in t_data])
     except Exception as e:
         return f"Error: Transcript ဆွဲထုတ်လို့မရပါ - {str(e)}"
@@ -32,7 +38,14 @@ def get_youtube_transcript(video_id):
 def generate_myanmar_recap(transcript_text):
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
-        prompt = f"Please recap the following video transcript into natural, engaging Myanmar language. Create a summary and key takeaways: {transcript_text}"
+        # Prompt ကို ပိုပြီး ရှင်းရှင်းလင်းလင်း ပြင်ထားပါတယ်
+        prompt = f"""
+        You are an expert storyteller. Please breakdown, summarize and recap the following video transcript into very natural, flowing, and engaging Myanmar (Burmese) language.
+        Format it with a main summary and key highlights in bullet points.
+        
+        Transcript:
+        {transcript_text}
+        """
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
