@@ -25,7 +25,7 @@ def get_video_id(url):
 # YouTube Transcript (စာသား) ဆွဲထုတ်တဲ့ Function
 def get_youtube_transcript(video_id):
     try:
-        # အင်္ဂလိပ်စာသား (သို့) အလိုအလျောက်ပြောင်းထားတဲ့ စာသားကို ယူမယ်
+        # ဒီနေရာမှာ အရင်က သတ်ပုံမှားသွားတဲ့ get_transcript ကို သေချာပြင်ထားပါတယ်
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'my'])
         transcript = " ".join([item['text'] for item in transcript_list])
         return transcript
@@ -35,17 +35,17 @@ def get_youtube_transcript(video_id):
 # Gemini AI သုံးပြီး မြန်မာလို Recap လုပ်ပေးမယ့် Function
 def generate_myanmar_recap(transcript_text):
     try:
-        # ဗီဒီယိုအရှည်တွေအတွက် gemini-1.5-flash သို့မဟုတ် gemini-1.5-pro က အကောင်းဆုံးပါ
+        # ဗီဒီယိုအရှည်တွေအတွက် gemini-1.5-flash က အကောင်းဆုံးပါ
         model = genai.GenerativeModel("gemini-1.5-flash")
         
         prompt = f"""
-        You are an expert content summarizer. Translate and recap the following YouTube video transcript into natural, engaging, and professional Myanmar (Burmese) language. 
+        You are an expert content summarizer and storyteller. Translate and recap the following YouTube video transcript into natural, engaging, flowing, and professional Myanmar (Burmese) language. 
         
         Guidelines:
-        1. Don't do literal translation. Make it sound like a natural Myanmar script/storytelling.
-        2. Create a "Summary" section at the top.
-        3. Break down key takeaways into bullet points with headings.
-        4. Use clear paragraphs.
+        1. Don't do word-for-word translation. Make it sound like a natural Myanmar video script or detailed story recap.
+        2. Create an "အကျဉ်းချုပ် (Summary)" section at the top.
+        3. Break down key insights, events, or takeaways into clear bullet points with headings.
+        4. Use conversational but polite Myanmar tone. Avoid robotic translations.
         
         Transcript:
         {transcript_text}
@@ -59,34 +59,5 @@ def generate_myanmar_recap(transcript_text):
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="YouTube Myanmar Recapper", page_icon="🎥", layout="centered")
 
-st.title("🎥 YouTube Video Myanmar Recapper")
-st.write("YouTube Link ထည့်လိုက်ရုံနဲ့ ဗီဒီယိုတစ်ခုလုံးရဲ့ အနှစ်ချုပ်ကို သဘာဝကျတဲ့ မြန်မာလို ဖတ်ရှုနိုင်ပါပြီ။")
-
-# User Input
-video_url = st.text_input("YouTube Video URL ကို ဒီမှာ ထည့်ပါ:", placeholder="https://www.youtube.com/watch?v=...")
-
-if st.button("Recap လုပ်မယ် ✨"):
-    if video_url:
-        video_id = get_video_id(video_url)
-        
-        if video_id:
-            # YouTube Thumbnail ပြသခြင်း
-            st.image(f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", width=400)
-            
-            with st.spinner("ဗီဒီယို စာသားများကို ဆွဲထုတ်နေသည်...⏳"):
-                transcript = get_youtube_transcript(video_id)
-            
-            if "Error" in transcript:
-                st.error(transcript)
-            else:
-                with st.spinner("Gemini AI က မြန်မာလို သဘာဝကျအောင် အနှစ်ချုပ်နေသည်...🤖✍️"):
-                    recap_result = generate_myanmar_recap(transcript)
-                
-                st.success("ပြီးပါပြီ။ ✨")
-                st.subheader("📝 မြန်မာလို အနှစ်ချုပ် စကရစ်ဖ်")
-                st.markdown(recap_result)
-        else:
-            st.error("မှန်ကန်သော YouTube Link ဖြစ်ပါစေ။")
-    else:
-        st.warning("ကျေးဇူးပြု၍ Link တစ်ခုခု ထည့်ပေးပါ။")
-      
+st.title("🎥 YouTube Video Myanmar
+         
