@@ -1,5 +1,5 @@
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi
+import youtube_transcript_api
 import google.generativeai as genai
 import os, re
 
@@ -17,8 +17,15 @@ def get_video_id(url):
 
 def get_youtube_transcript(video_id):
     try:
-        t_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'my'])
-        return " ".join([item['text'] for item in t_list])
+        # Error မတက်အောင် ပုံစံအသစ်နဲ့ Transcript ဆွဲထုတ်နည်း
+        srt = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id)
+        # အင်္ဂလိပ်စာသားကို အရင်ရှာမယ်၊ မရှိရင် Auto-generated ကို ယူမယ်
+        try:
+            t_data = srt.find_transcript(['en', 'my']).fetch()
+        except:
+            t_data = srt.find_generated_transcript(['en', 'my']).fetch()
+            
+        return " ".join([item['text'] for item in t_data])
     except Exception as e:
         return f"Error: Transcript ဆွဲထုတ်လို့မရပါ - {str(e)}"
 
@@ -56,4 +63,3 @@ if st.button("Recap လုပ်မယ် ✨"):
                 st.markdown(recap_result)
         else:
             st.error("မှန်ကန်သော YouTube Link ဖြစ်ပါစေ။")
-            
