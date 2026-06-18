@@ -144,47 +144,13 @@ HASHTAGS:
             "Generating recap..."
         ):
 
-            import time
-
-max_retries = 3
-
-for attempt in range(max_retries):
-
-    try:
-
-        import time
-
-max_retries = 3
-
-for attempt in range(max_retries):
-
-    try:
-
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
-            contents=[
-                file_info,
-                prompt
-            ]
-        )
-
-        break
-
-    except Exception:
-
-        if attempt == max_retries - 1:
-            raise
-
-        time.sleep(10)
-
-        break
-
-    except Exception:
-
-        if attempt == max_retries - 1:
-            raise
-
-        time.sleep(10)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    file_info,
+                    prompt
+                ]
+            )
 
         result = response.text
 
@@ -205,3 +171,4 @@ for attempt in range(max_retries):
     except Exception as e:
 
         st.error(str(e))
+        
